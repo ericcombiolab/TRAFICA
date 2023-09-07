@@ -1,13 +1,21 @@
 # TRAFICA:
 
-## Code environment  
+## (A) Code environment  
+1. Creat a new conda environment with the provided '.yaml' file.
+```
+conda env create -f environment.yaml
+```
+2. Activate the environment
+```
+conda activate TRAFICA
+```
 
 
-## Quick start (example) 
+## (B) Quick start (example) 
 ### Fully fine-tuning version
 1. Git clone or download this repo to your local disk  
 ```
-git clone git@github.com:yuxu-1/TRAFICA.git
+git clone git@github.com:ericcombiolab/TRAFICA.git
 ```
 2. [Data preprocessing](#sequences-to-k-mer-format-transformation): use the processed [example data](./Examples/Example_data/RFX5_TGGAGC30NGAT_4mer_finetuneDataFolder/) to fine-tune TRAFICA
 
@@ -27,7 +35,7 @@ The step 1 to 3 is same with fully fine-tuning
 5. [Train the AdapterFusion module and evaluate the model using the example data](./Src/readme.md#adapterfusion)
 
 
-## Data availability 
+## (C) Data availability 
 * Raw data source
 
 * Processed data
@@ -35,10 +43,11 @@ The step 1 to 3 is same with fully fine-tuning
 
 ******************
 
-## [Source code](./Src/)
+## (D) [Source code](./Src/)
 
- 
-## Tools for k-mer vocab construction, sequence2kmer, and oneline files
+***************
+  
+## (E) Tools for k-mer vocab construction, sequence2kmer, and oneline files
 
 ### Interface introduction:  
 `python utils.py --help`
@@ -84,13 +93,13 @@ The step 1 to 3 is same with fully fine-tuning
 
 ***************
  
-## TODO:
+## (F) TODO:
 Add a function to accept sequences as inputs directly (merge pre-processing step)
 
 
 ***************
  
-## Contact:
+## (G) Contact:
 Mr. Yu Xu, email: csyuxu@comp.hkbu.edu.hk; allanxu20@gmail.com  
 Dr. Eric Lu Zhang, email: ericluzhang@hkbu.edu.hk  
 
