@@ -89,7 +89,7 @@ if __name__ == '__main__':
 
     ## send results to other server    
     if remote_path != None:
-        tranfer_station = Transmit_Server(pass_word='aA515636', save_folder=batch_save_dir,target_path=remote_path)
+        tranfer_station = Transmit_Server(pass_word='000000', save_folder=batch_save_dir,target_path=remote_path)
 
     ## bacth fine-tune and evaluate models
     while len(recorder.unfinished_exps) != 0:    
