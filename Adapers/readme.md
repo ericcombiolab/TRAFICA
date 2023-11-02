@@ -1,0 +1,1 @@
+https://huggingface.co/Allanxu/TRAFICA/tree/main/Adapters

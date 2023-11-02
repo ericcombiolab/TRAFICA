@@ -8,10 +8,11 @@ import six
 import argparse
 import json
 from torch.utils.data import Dataset
+import re 
 
-# token
-vocab = ['A', 'T', 'C', 'G', 'N', 'Mask', 'CLS', 'PAD', 'SEP'] # default vocabulary for char-token strategy
-vocab_special = ['Mask', 'CLS', 'PAD', 'SEP', 'UNK']
+# # token
+# vocab = ['A', 'T', 'C', 'G', 'N', 'Mask', 'CLS', 'PAD', 'SEP'] # default vocabulary for char-token strategy
+# vocab_special = ['Mask', 'CLS', 'PAD', 'SEP', 'UNK']
 
 
 
@@ -25,6 +26,14 @@ def debug_breakpoint(context=None):
         else:
             print(context)
     sys.exit()
+
+
+## avoid cmd error when a file name includes ()
+def escape_special_chars(s):
+    pattern = r'([\(\)])'
+    repl = r'\\\1'
+    return re.sub(pattern, repl, s)
+
 
 ## iterate all files in a folder including the subfolders
 def iter_files_in_all_subfolders(folder):
@@ -97,12 +106,88 @@ def saving_test_performance(save_folder, result, file_name, exp):
             json.dump({exp:result}, write_file, indent=4)
 
 
-
-
 def remove_noneElements_in_list(data):
     return [i for i in data if i!=""]
 
 
+
+def equal_width_bins(array, num_bins):
+    """
+    Divide the array into equal-width bins.
+
+    Args:
+        array (numpy.ndarray): Input array.
+        num_bins (int): Number of bins to create.
+        
+    Returns:
+        numpy.ndarray: Array containing the bin indices for each value in the input array.
+    """
+    # Calculate the width of each bin
+    array = array[:,1] # affinity column
+
+    min_value = np.min(array)
+    max_value = np.max(array)
+    bin_width = (max_value - min_value) / num_bins
+    
+    # Use numpy.histogram function to compute the frequencies of each bin
+    hist, _ = np.histogram(array, bins=num_bins, range=(min_value, max_value))
+    
+    # Use numpy.digitize function to map the values in the array to their corresponding bins
+    bin_indices = np.digitize(array, bins=np.arange(min_value, max_value, bin_width))
+    
+    return bin_indices
+
+
+def quantile_bins(array, num_bins):
+    """
+    Divide the array into quantile-based bins.
+
+    Args:
+        array (numpy.ndarray): Input array.
+        num_bins (int): Number of bins to create.
+        
+    Returns:
+        numpy.ndarray: Array containing the bin indices for each value in the input array.
+    """
+    array = array[:,1] # affinity column
+
+    bin_indices = np.zeros_like(array, dtype=int)
+    percentiles = np.linspace(0, 100, num_bins+1)
+    bin_edges = np.percentile(array, percentiles)
+    
+    for i in range(num_bins):
+        lower_bound = bin_edges[i]
+        upper_bound = bin_edges[i+1]
+        bin_indices[(array >= lower_bound) & (array <= upper_bound)] = i
+    
+    return bin_indices
+
+
+def sample_from_bins(array, bin_indices):
+    """
+    Sample one value from each bin and combine them into a new array.
+
+    Args:
+        array (numpy.ndarray): Input array.
+        bin_indices (numpy.ndarray): Array containing the bin indices for each value in the input array.
+        
+    Returns:
+        numpy.ndarray: Array containing one sampled value from each bin.
+    """
+    unique_bins = np.unique(bin_indices)  # Get the unique bin indices
+
+    sampled_values = []
+    for bin_index in unique_bins:
+        bin_values = array[bin_indices == bin_index]  # Get the values in the current bin
+
+        # Sample one value from the bin
+        random_indices = np.random.choice(len(bin_values), 1, replace=False)[0]
+        sampled_value = bin_values[random_indices]
+      
+        sampled_values.append(sampled_value)
+ 
+    sampled_array = np.array(sampled_values)
+    return sampled_array
 
 ##################### file operation #####################
 def Dir_check_and_create(dir_path):
@@ -132,6 +217,8 @@ def load_txt_single_column(save_path):
     f.close()
     return collect    
     
+
+
 def split_one_seq_one_file(data_dir, save_dir, level_sub_folder=1, split_chunks=None, chunk_start=0):   # split_chunks: num of files in a chunk; this is to avoid the consumption of disk space when processing large-scale datasets (experiments)
 
     if not os.path.exists(save_dir):
@@ -204,6 +291,23 @@ def create_directory(path):
     """
     if not os.path.exists(path): # Check if the directory already exists
         os.makedirs(path) # Create the directory and any necessary parent directories
+
+
+def get_file_extension(file_path):
+    """
+    Returns the file extension of the given file path.
+    
+    Args:
+        file_path (str): The absolute path of the file.
+        
+    Returns:
+        str: The file extension of the file.
+    """
+    # Use splitext function to get the file name and extension
+    _, extension = os.path.splitext(file_path)
+    # Remove the dot from the extension
+    extension = extension[1:]
+    return extension
 
 
 ##################### k-mer vocabularies construction #####################
@@ -288,6 +392,7 @@ def seq2kmer(sequences, k, min_length=10):
         else:
             return _seq2kmer_for_one_seq(sequences, k)
 
+
 ## Convert sequence(s) to k-mer(s) with the special tokens 
 # discard it if using huggingface bert tokenizer
 def seq2kmer_with_special_symbols(sequences, k):
@@ -297,6 +402,7 @@ def seq2kmer_with_special_symbols(sequences, k):
         return k_mer_from_seqs_with_SS
     k_mer_from_seqs_with_SS = [['CLS'] + i + ['SEP'] for i in k_mer_from_seqs]
     return k_mer_from_seqs_with_SS          # multiple sequences
+
 
 ## Batch sequences files operation
 # results will be stored into the new folder named 'XX_k_mer'
@@ -363,13 +469,13 @@ def pre_process_seq2kmer_files(data_dir, k=4, special_symbols=False, label=False
         print('the number of processed k-mer files :\t%d/%d' % (count, len(seq_files)))
 
 
-def get_aminoacid_type_from_seqfile(file_path):
-    seqs = pd.read_table(file_path, header=None).values.ravel()
-    collect = []
-    for seq in seqs:
-        collect += list(set([char for char in seq]))
-        collect = list(set(collect))
-    return collect, len(collect)
+# def get_aminoacid_type_from_seqfile(file_path):
+#     seqs = pd.read_table(file_path, header=None).values.ravel()
+#     collect = []
+#     for seq in seqs:
+#         collect += list(set([char for char in seq]))
+#         collect = list(set(collect))
+#     return collect, len(collect)
 
 ##################### Bert source code: creat multi-head attention matrices  #####################
 # these functions were modified from google research bert source code: 'modeling.py' (yuxu)
@@ -663,19 +769,20 @@ def mask_strategy_contiguous_split(input, vocab, ratio=0.15, n_phrase_mask=1):
         rand_mask[i, pos_start_mask[i,j]: pos_start_mask[i,j] + phrase_size[i]] = 1 
     return rand_mask
 
-def construct_att_mask(inputs, n_heads=12, vocab=None):
-    padding_mask = (inputs == vocab.index('[PAD]'))
-    mask = torch.zeros(inputs.shape)
-    mask = mask.masked_fill_(padding_mask, 1)
-    mask = mask.bool()
-    word_mask = create_attention_mask_from_input_mask(inputs, mask)#rand_mask)
-    word_mask = word_mask.bool()
-    attx_mask = torch.zeros(word_mask.shape).masked_fill_(word_mask, float('-inf'))
-    attx_mask_for_multi_head = [] 
-    for i in range(n_heads):
-        attx_mask_for_multi_head.append(attx_mask)
-    attx_mask = torch.cat(attx_mask_for_multi_head, dim=0)   # [n_head * batch_size, dim_hidden, dim_hidden]
-    return attx_mask
+
+# def construct_att_mask(inputs, n_heads=12, vocab=None):
+#     padding_mask = (inputs == vocab.index('[PAD]'))
+#     mask = torch.zeros(inputs.shape)
+#     mask = mask.masked_fill_(padding_mask, 1)
+#     mask = mask.bool()
+#     word_mask = create_attention_mask_from_input_mask(inputs, mask)#rand_mask)
+#     word_mask = word_mask.bool()
+#     attx_mask = torch.zeros(word_mask.shape).masked_fill_(word_mask, float('-inf'))
+#     attx_mask_for_multi_head = [] 
+#     for i in range(n_heads):
+#         attx_mask_for_multi_head.append(attx_mask)
+#     attx_mask = torch.cat(attx_mask_for_multi_head, dim=0)   # [n_head * batch_size, dim_hidden, dim_hidden]
+#     return attx_mask
 
 
 def mask_strategy_contiguous_split_for_HuggingBert(input, ratio=0.15, n_phrase_mask=1): 
@@ -879,118 +986,8 @@ def data_collate_fn_FOR_BASELINE_MODEL(arr):
 
 
 ##################### unclassified #####################
-def read_fastq(obj):
-    idx = [4*i-3 for i in range(1, int(obj.size/4)+1)]
-    sequences = obj[idx]
-    sequences = sequences.ravel()
-    return sequences
-
-
 def clamp_value(x):
     return torch.clamp(x, .1, 1e3)
-
-
-def seq_to_8mer(seq):
-    n_base = len(seq)
-    if n_base < 8:
-        print('sequence length error:\t', seq, str(n_base))
-        import sys
-        sys.exit()
-
-    start = 0
-    collect = []
-    for i in range(int(n_base-7)):
-        _8mer = seq[start:start+8]
-        collect.append(_8mer)
-        start += 1
-    return collect
-
-
-def get_reverse_complement(seq):
-    local_seq = seq 
-    local_seq = local_seq[::-1]
-    collect = []
-    for char in local_seq:
-        if char == 'A':
-            _char = 'T'
-        elif char == 'T':
-            _char = 'A'
-        elif char == 'C':
-            _char = 'G'
-        elif char == 'G':
-            _char = 'C'
-        else:
-            _char = 'N' 
-        collect.append(_char)
-    return ''.join(collect)
-
-
-def convert_to_8_mer_distribution(token, _8mer_list):
-    collect = []
-    for _8mer in _8mer_list:
-        single_wildcard_collect = []
-        double_wildcard_collect = []
-        for i in range(8):
-            single_wildcard = _8mer[:i] + 'N' + _8mer[i+1:]            
-            single_wildcard_collect.append(single_wildcard)   
-            if i < 7:
-                double_wildcard = _8mer[:i] + 'NN' + _8mer[i+2:]            
-                double_wildcard_collect.append(double_wildcard)
-       
-        _8mer_with_wildcards = [_8mer] + single_wildcard_collect + double_wildcard_collect
-        search_dict = token.item() 
-
-        index = []
-        for key_8mer in _8mer_with_wildcards:
-            match = search_dict.get(key_8mer)
-            if match: 
-                index.append(match-1) # '-1' for removing first position representing 'empty'
-            else: # reverse complement
-                index.append(search_dict.get(get_reverse_complement(key_8mer)) -1)
-        
-        collect += index # for each 8-mer
-   
-    _8mer_disribution = np.zeros(len(search_dict.keys())-1)
-    for i in collect:
-        _8mer_disribution[i] += 1 # count 8-mer
-    
-    return _8mer_disribution
-
-
-
-def load_ATAC_seq_data(data_dir):
-    seq_files = os.listdir(data_dir)
-    seq_list = []
-    count = 0
-    for i in seq_files:
-        seqs = pd.read_table(os.path.join(data_dir,i), header=None).values.ravel().tolist()
-        seq_list+=seqs 
-        if count>1:
-            break
-        count+=1
-        print('the number of loaded files :\t%d/%d' % (count, len(seq_files)))
-    return seq_list
-
-
-
- 
-def load_ATAC_seq_data_kmer_format(data_dir, debug_n_files=None):    
-    files = os.listdir(data_dir)
-    count = 0
-    collect_kmers = []
-    for i in files:
-        f = open(os.path.join(data_dir, i), 'r')
-        collect = []
-        for line in f:
-            collect.append( line.strip().split('\t') )
-        f.close()
-        collect_kmers+=collect
-        count+=1
-        print('the number of loaded k-mer files :\t%d/%d' % (count, len(files)))
-
-        if debug_n_files and ( count >= debug_n_files ):
-            break
-    return collect_kmers
 
 
 def load_data_kmer_format(data_path):    
@@ -1002,28 +999,12 @@ def load_data_kmer_format(data_path):
     return collect
 
 
-
-def load_deepbind_chip_seq(data_path):
-    df = pd.read_table(data_path)
-    sequences = df['seq'].values.tolist()
-    y = df['Bound'].values.tolist()
-    return sequences, y
-
-
-
 def set_seeds(seed_val): 
     random.seed(seed_val)
     np.random.seed(seed_val)
     torch.manual_seed(seed_val)
     torch.cuda.manual_seed_all(seed_val)
 
-
-def get_trainable_layer_names(model):
-    collect= []
-    for name, param in model.named_parameters():
-        if param.requires_grad:
-            collect.append(name)
-    return collect
 
 
 
@@ -1154,12 +1135,12 @@ if __name__ == '__main__':
 
 
 
-    if args.count_char_types:
-        chars, n_types = get_aminoacid_type_from_seqfile(args.file_path)
-        special_tokens_for_bert = ['[MASK]', '[CLS]', '[PAD]', '[SEP]', '[UNK]']
-        chars = chars + special_tokens_for_bert
-        if args.save_dir != ' ':
-            save_txt_single_column(args.save_dir, chars)
+    # if args.count_char_types:
+    #     chars, n_types = get_aminoacid_type_from_seqfile(args.file_path)
+    #     special_tokens_for_bert = ['[MASK]', '[CLS]', '[PAD]', '[SEP]', '[UNK]']
+    #     chars = chars + special_tokens_for_bert
+    #     if args.save_dir != ' ':
+    #         save_txt_single_column(args.save_dir, chars)
 
     # example: 
     # python utils.py --count_char_types True --file_path /tmp/csyuxu/processed_uniref30_sequences/chunk_1.seq 

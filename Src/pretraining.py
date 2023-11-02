@@ -1,5 +1,4 @@
 from transformers import BertConfig, BertTokenizer
-from models import Bert_MLM_model
 from SeqFolder import SeqFolder
 from torch.utils.data import DataLoader
 import torch
@@ -14,6 +13,8 @@ import json
 from torch.cuda.amp import autocast
 from torch.cuda.amp import GradScaler
 
+from models import TRAFICA_PreTrain
+
 sys.path.append('..')
 from utils import *
 
@@ -21,7 +22,6 @@ from utils import *
 
 def data_collate_fn(arr): # avoid error
     return arr
-
 
 
 def compute_metrics(out, batch_data, mask_idx):
@@ -164,14 +164,18 @@ if __name__ == '__main__':
         device = 'cpu'
 
     if args.wandb:
-        trace_tool = wandb.init(project="bert_mlm")
+        trace_tool = wandb.init(project="TRAFICA_ATAC_MLM")
+
 
     train_data = SeqFolder(args.train_data_path)
     train_dataloader = DataLoader(train_data, args.batch_size, shuffle=True, collate_fn=data_collate_fn)
     Tokenizer = BertTokenizer(args.vocab_path, do_lower_case=False, model_max_length=args.max_len_tokens)
+    Tokenizer.save_pretrained('./tokenizer')
     configuration = BertConfig(vocab_size=Tokenizer.vocab_size, output_attentions=True)
-    model = Bert_MLM_model(configuration)
+    model = TRAFICA_PreTrain(configuration)
 
+
+    create_directory(args.model_save_dir)
 
     if torch.cuda.is_available():
         model.to(device)
@@ -214,10 +218,18 @@ if __name__ == '__main__':
         trace_tool.finish()
 
 
-    # example: 
-    # python pretrain_BindBERT.py --batch_size 384 --total_training_step 110000 --lr_warmup 10000 --lr 0.0001 --mask_ratio 0.15 --mask_n_phrases 2 --wandb True --use_gpu True --model_save_dir ./pretrained_models/ATAC_seq_2split_4mer --train_data_path /tmp/csyuxu/processed_ATAC_seq_ENCODE_p100_4mer_pretrainDataFolder --vocab_path ../vocab_k_mer/vocab_DNA_4_mer.txt
-    # python pretrain_BindBERT.py --batch_size 384 --total_training_step 110000 --lr_warmup 10000 --lr 0.0001 --mask_ratio 0.15 --mask_n_phrases 0 --wandb True --use_gpu True --model_save_dir ./pretrained_models/ATAC_seq_nosplit_4mer --train_data_path /tmp/csyuxu/processed_ATAC_seq_ENCODE_p100_4mer_pretrainDataFolder --vocab_path ../vocab_k_mer/vocab_DNA_4_mer.txt
-
+    # Example: 
+    # python pretraining.py \
+    # --batch_size 384 \
+    # --total_training_step 110000 \
+    # --lr_warmup 10000 --lr 0.0001 \
+    # --mask_ratio 0.15 \
+    # --mask_n_phrases 10 \
+    # --wandb True \
+    # --use_gpu True \
+    # --model_save_dir ./pretrained_models/ATAC_seq_10split_4mer \
+    # --train_data_path /tmp/csyuxu/processed_ATAC_seq_ENCODE_p100_4mer_pretrainDataFolder \
+    # --vocab_path ../vocab_k_mer/vocab_DNA_4_mer.txt
 
 
 
