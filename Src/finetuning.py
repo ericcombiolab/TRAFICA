@@ -417,7 +417,3 @@ if __name__ == '__main__':
             if args.save_dir_metric and args.name_experiment:
                 saving_test_performance(args.save_dir_metric, metric_score, 'test_' + metric, args.name_experiment) # saving evaluation results 
 
-### -> batch operation sorting for a isolated part
-### single file -> process k-mer oneline (extracted from uti) -> generate one to test AdapterFusion (training)
-### only release single operation, keep batch for myself -> batch to a class for easy use 
-### update fine-tuning pre=training prediction dataset model seqfolder motif is okay
