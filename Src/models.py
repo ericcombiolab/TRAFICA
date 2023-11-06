@@ -28,21 +28,26 @@ class TRAFICA_PreTrain(nn.Module):
 
 ###### Basic Modules
 class TRAFICA_Affinity_predictor(nn.Module):
-    def __init__(self, h_size, type='regression'):
+    def __init__(self, h_size, predict_type='regression'):
         super(TRAFICA_Affinity_predictor, self).__init__()
+
+        self.predict_type = predict_type
 
         if not isinstance(h_size, int):
             raise ValueError("The hidden size of the affinity predictor is not int type")
 
-        if type == 'regression': # regressor 
+        if predict_type == 'regression': # regressor 
             self.predictor = nn.Sequential(nn.Linear(h_size, int(h_size/2)), nn.Linear(int(h_size/2), 1))
-        elif type == 'classification': # classifier
+        elif predict_type == 'classification': # classifier
             self.predictor = nn.Linear(h_size,1)
         else:
             raise TypeError("The hidden size of the affinity predictor should be regression or classification")
 
     def forward(self, X):
-        return self.predictor(X)
+        if self.predict_type == 'classification':
+            return torch.sigmoid(self.predictor(X))
+        else:
+            return self.predictor(X)
     
 
 
@@ -106,7 +111,7 @@ class TRAFICA_peripherals(PreTrainedModel):
             self.pooler  = TRAFICA_Pooler(config.hidden_size)
 
         # affinity predictor
-        self.affinity_predictor = TRAFICA_Affinity_predictor(config.hidden_size, type=config.predictor_type)
+        self.affinity_predictor = TRAFICA_Affinity_predictor(config.hidden_size, predict_type=config.predictor_type)
  
         self.init_weights() # for the utilization of .from_pretrained() 
 
