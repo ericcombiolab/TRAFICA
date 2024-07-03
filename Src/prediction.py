@@ -46,12 +46,12 @@ def TRAFICA_HOOK_GET_Q_K_AdapterFusion(model, q_out, k_out, encoder_layer=0):
         k_out.append(module_out.clone().detach())
 
     # get the name of the adapterfusio component
-    tmp_adapterfusion_dict_key = model.BertModel.encoder.layer[1].output.adapter_fusion_layer.keys()
+    tmp_adapterfusion_dict_key = model.prediction_model.ATAC_Model.encoder.layer[1].output.adapter_fusion_layer.keys()
     tmp_adapterfusion_dict_key = list(tmp_adapterfusion_dict_key)[0]
 
     # register hook function for callback
-    hook_query = model.BertModel.encoder.layer[encoder_layer].output.adapter_fusion_layer[tmp_adapterfusion_dict_key].query.register_forward_hook(hook_forward_function_query)
-    hook_key = model.BertModel.encoder.layer[encoder_layer].output.adapter_fusion_layer[tmp_adapterfusion_dict_key].key.register_forward_hook(hook_forward_function_key)
+    hook_query = model.prediction_model.ATAC_Model.encoder.layer[encoder_layer].output.adapter_fusion_layer[tmp_adapterfusion_dict_key].query.register_forward_hook(hook_forward_function_query)
+    hook_key = model.prediction_model.ATAC_Model.encoder.layer[encoder_layer].output.adapter_fusion_layer[tmp_adapterfusion_dict_key].key.register_forward_hook(hook_forward_function_key)
     return hook_query, hook_key
 
 
@@ -59,14 +59,14 @@ def test_model_outFusionAtt(model, test_data, Tokenizer, device):
     collect_y = []
     collect_out = []
 
-    n_layers = len(model.BertModel.encoder.layer)
+    n_layers = len(model.prediction_model.ATAC_Model.encoder.layer)
     collect_attAdapterFusion = [[] for i in range(n_layers)]
 
     for data in test_data:
         X, y = data
         inputs = Tokenizer(X, return_tensors="pt", padding=True)
         y = torch.tensor(data[1]).float()
-
+  
         q_out_collect = [] # hiddden saving
         k_out_collect = [] # hiddden saving
         q_hook_collect = [] 
@@ -90,6 +90,7 @@ def test_model_outFusionAtt(model, test_data, Tokenizer, device):
             q_hook_collect[i].remove()
             k_hook_collect[i].remove()
 
+ 
         collect_y += y.tolist()
         collect_out += out.flatten().cpu().detach().numpy().tolist()
 
@@ -181,9 +182,9 @@ if __name__ == '__main__':
         if args.task_type != 'AdapterFusion':
             import sys
             sys.exit('Adapters attention can be obtained only in the AdapterFusion phase')
-        test_y, test_y_hat, att_AdapterFusion = test_model_outFusionAtt(model, test_data=data, Tokenizer=Tokenizer, device=device)           
+        test_y, test_y_hat, att_AdapterFusion = test_model_outFusionAtt(model, test_data=dataloader, Tokenizer=Tokenizer, device=device)           
         with h5py.File(os.path.join(args.save_dir, 'att_adapters.h5') , 'w') as file:
-            for i in range(len(model.BertModel.encoder.layer)):
+            for i in range(len(model.prediction_model.ATAC_Model.encoder.layer)):
                 file.create_dataset('att_layer_'+str(i), data=att_AdapterFusion[i].numpy())
     else:
         test_y, test_y_hat = test_model(model, test_data=dataloader, Tokenizer=Tokenizer, device=device)

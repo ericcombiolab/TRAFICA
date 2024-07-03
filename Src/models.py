@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from transformers import BertModel, PreTrainedModel, AdapterConfig, PretrainedConfig
+from transformers import BertModel, PreTrainedModel, AdapterConfig, PretrainedConfig, BertConfig
 from transformers.models.bert.modeling_bert import BertOnlyMLMHead
 from transformers.adapters.composition import Fuse
 
@@ -11,7 +11,7 @@ from utils import *
 
 
 
-############################################################   Refinement:XU TFAFICA code v2  ######################################################################################
+############################################################  TFAFICA  ######################################################################################
 ###### Pretrain: Mask language model
 class TRAFICA_PreTrain(nn.Module):
     def __init__(self, configuration=None):
@@ -171,7 +171,14 @@ class TRAFICA_FullyFineTuning(nn.Module):
 
     def init_component(self, PretrainedModelPath, add_pooler=True):
         # initialize transformer-encoder blocks -> load ATAC-seq pre-trained model 
-        self.ATAC_Model = BertModel.from_pretrained(PretrainedModelPath, add_pooling_layer=False)
+        if PretrainedModelPath == 'Without': # train from scratch: for analysis only
+            print('train from scratch.')
+            configuration = BertConfig(vocab_size=630, output_attentions=True)
+            self.ATAC_Model = BertModel(configuration, add_pooling_layer=False) 
+        else:                           # train from the pre-trained model
+            self.ATAC_Model = BertModel.from_pretrained(PretrainedModelPath, add_pooling_layer=False)
+
+
         self.hidden_size = self.ATAC_Model.config.hidden_size
 
         # initialize periphrals
@@ -185,7 +192,8 @@ class TRAFICA_FullyFineTuning(nn.Module):
         finetuned_peripherals = os.path.join(FineTunedPath,'peripherals')
         self.ATAC_Model = BertModel.from_pretrained(finetuned_encoderblocks, add_pooling_layer=False)  
         self.pooler_predictor = TRAFICA_peripherals.from_pretrained(finetuned_peripherals)
-        # check whether the fine-tuned model including a pooler module or not
+
+        # automatically check whether the fine-tuned model including a pooler module or not
         for name, _ in self.pooler_predictor.named_parameters():
             if name == 'pooler.dense.weight': 
                 self.add_pooler = True
@@ -204,6 +212,19 @@ class TRAFICA_FullyFineTuning(nn.Module):
         # save the parameters of encoder blocks and peripherals
         self.ATAC_Model.save_pretrained(finetuned_encoderblocks)
         self.pooler_predictor.save_pretrained(finetuned_peripherals)
+
+
+    def tmp_for_change(self, model_path):
+        # load fine-tuned parameters
+        state_dict = torch.load(os.path.join(model_path, 'finetuned_model.pth'))
+        # transfer to new model
+        configuration = BertConfig.from_pretrained(model_path)
+        self.ATAC_Model = BertModel(configuration, add_pooling_layer=False)
+        self.ATAC_Model.load_state_dict(state_dict['bert'])
+
+        # initialize periphrals
+        peripherals_config = TRAFICA_peripherals_config(hidden_size=768, add_pooler=False)
+        self.pooler_predictor = TRAFICA_peripherals(peripherals_config)
 
 
 ## Adapter-tuning approach
@@ -301,10 +322,12 @@ class TRAFICA_AdapterFusion(nn.Module):
             with open(AdapterPath, "r") as f:
                 Adapters_Dict = json.load(f)
             self.Adapters_names = list(Adapters_Dict.keys())
+
             for name in self.Adapters_names:
-               
-                self.ATAC_Model.load_adapter(adapter_name_or_path=os.path.join(Adapters_Dict[name], 'adapter'), load_as=name, set_active=True)
-        
+                try:
+                    self.ATAC_Model.load_adapter(adapter_name_or_path=os.path.join(Adapters_Dict[name], 'adapter'), load_as=name, set_active=True)
+                except:
+                    raise NotImplementedError('Adapter loading:', name)
         ## TODO: to support other format. A list of adapters; Manually specifiy the name of adapters...     
         else:
             raise NotImplementedError('AdapterFusion: error in loading adapters, check the input format.')    
@@ -367,7 +390,7 @@ class TRAFICA_AdapterFusion(nn.Module):
 
 class TRAFICA(nn.Module):
     def __init__(self, PreTrained_ModelPath=None, FineTuned_FullModelPath=None, FineTuned_AdapeterPath=None, FineTuned_AdapetersListPath=None, 
-                 FineTuned_AdapeterFusionPath=None ,FineTuningType='AdapterTuning', PredictorType='regression', out_attention=False):
+                 FineTuned_AdapeterFusionPath=None ,FineTuningType='FullyFineTuning', PredictorType='regression', out_attention=False):
         super(TRAFICA, self).__init__()
         """
         TRAFICA object: Main body
@@ -412,7 +435,7 @@ class TRAFICA(nn.Module):
         if self.FineTuningType == 'FullyFineTuning':
             self.prediction_model.init_component(PretrainedModelPath=self.PreTrained_ModelPath)
         elif self.FineTuningType == 'AdapterTuning':
-            self.prediction_model.init_component(reduction_factor=16, predictor_type=self.PredictorType) # 16 by default in our study
+            self.prediction_model.init_component(reduction_factor=16, predictor_type=self.PredictorType) 
         elif self.FineTuningType == 'AdapterFusion':
             self.prediction_model.init_component(predictor_type=self.PredictorType)
 

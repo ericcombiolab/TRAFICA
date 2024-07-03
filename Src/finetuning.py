@@ -73,23 +73,18 @@ def LoadDataset(train_path, val_path=None, test_path=None, batch_size=128,
                 bin_idx= quantile_bins(data, max_sample)
                 subset = sample_from_bins(data, bin_idx)
                 data = subset
-                # # random
-                # num_rows = data.shape[0]
-                # random_indices = np.random.choice(num_rows, max_sample, replace=False)
-                # data = data[random_indices]
-                # #
-                # # data = data[:max_sample,:]
-
+    
         dataset = TRAFICA_Dataset(data)
         dataloader = DataLoader(dataset, batch_size, shuffle=shuffle, collate_fn=Data_Collection)
-        return dataloader, dataset
+
+        return dataloader, dataset, data
         
     # fine-tuning the model with evaluation
     if val_path and test_path:
 
-        train_dataloader, train_data = _load_from_datamatrix(train_path, max_sample=train_num, shuffle=True, batch_size=batch_size)
-        val_dataloader, val_data = _load_from_datamatrix(val_path, max_sample=val_num, shuffle=True, batch_size=batch_size) 
-        test_dataloader, test_data = _load_from_datamatrix(test_path, shuffle=False, batch_size=batch_size)
+        train_dataloader, train_data, train = _load_from_datamatrix(train_path, max_sample=train_num, shuffle=True, batch_size=batch_size)
+        val_dataloader, val_data, val = _load_from_datamatrix(val_path, max_sample=val_num, shuffle=True, batch_size=batch_size) 
+        test_dataloader, test_data, test = _load_from_datamatrix(test_path, shuffle=False, batch_size=batch_size)
 
         # print the sizes of three sets
         if size_print:
@@ -97,21 +92,22 @@ def LoadDataset(train_path, val_path=None, test_path=None, batch_size=128,
             print('validation set size:\t', val_data.__len__())
             print('test set size:\t', test_data.__len__())
 
-        return train_dataloader, train_data, val_dataloader, val_data, test_dataloader, test_data
+        return train_dataloader, train_data, train, val_dataloader, val_data, val, test_dataloader, test_data, test
     
     # fine-tuning the model without evaluation
     elif val_path:
-        train_dataloader, train_data = _load_from_datamatrix(train_path, max_sample=train_num, shuffle=True, batch_size=batch_size)
-        val_dataloader, val_data = _load_from_datamatrix(val_path, max_sample=val_num, shuffle=True, batch_size=batch_size) 
+        train_dataloader, train_data, train = _load_from_datamatrix(train_path, max_sample=train_num, shuffle=True, batch_size=batch_size)
+        val_dataloader, val_data, val = _load_from_datamatrix(val_path, max_sample=val_num, shuffle=True, batch_size=batch_size) 
         test_dataloader = None
         test_data = None
+        test = None
         # print the sizes of three sets
         if size_print:
             print('training set size:\t', train_dataloader.__len__())
             print('validation set size:\t', val_dataloader.__len__())
             print('Not test set; fine-tuning the model without evaluation')
 
-        return train_dataloader, train_data, val_dataloader, val_data, test_dataloader, test_data
+        return train_dataloader, train_data, train, val_dataloader, val_data, val, test_dataloader, test_data, test
     
     # TODO: split sets from a input dataset automatically by the input ratio (split_ratio)
     else:
@@ -185,8 +181,9 @@ def fine_tuning(model,
             X, y = data
             inputs = Tokenizer(X, return_tensors="pt", padding=True)
             y = torch.tensor(data[1]).float()
-
+            
             out = model(inputs.to(device))
+    
             loss = criterion(torch.flatten(out), y.to(device))
             loss.backward()
             optim.step()
@@ -259,6 +256,7 @@ if __name__ == '__main__':
     parser.add_argument('--predict_type', default='regression', type=str, help="TRAFICA support two types of prediction: regression and classification")
     parser.add_argument('--name_experiment', required=False, default='Example_name', type=str, help="The identifier of the finetuning model")
 
+
     # path
     parser.add_argument('--save_dir_metric', required=False,type=str, help="The saving path of the metric record files")
     parser.add_argument('--save_dir', required=True,type=str, help="The saving path of the finetuned model and/or evaluation result")
@@ -297,13 +295,14 @@ if __name__ == '__main__':
     if args.inputfile_types == 'DataMatrix': 
         # use to evaluate the model on small datasets
         # do not require any preprocess; one line (raw) includes two columns: first column -> sequence, second column -> label 
-        train_loader, train_data, val_loader, val_data, test_loader, test_data = LoadDataset(train_path=args.train, 
+        train_loader, train_data, train, val_loader, val_data, val, test_loader, test_data, test = LoadDataset(train_path=args.train, 
                                                                                             val_path=args.val, 
                                                                                             test_path=args.test, 
                                                                                             batch_size=args.batch_size, 
                                                                                             train_num=args.max_num_train, 
                                                                                             val_num=args.max_num_val)
-    elif args.inputfile_types == 'OneLine': 
+        
+    elif args.inputfile_types == 'OneLine':  ## Do not support subset sample for training size experiments
         # preprocessed data files for large-scale data (training and evaluation)
         # this way can avoid hardware memory overflow
         train_loader, train_data, val_loader, val_data, test_loader, test_data = LoadDataset_with_SeqFolder(train_path=args.train, 
@@ -315,6 +314,20 @@ if __name__ == '__main__':
     else:
         raise TypeError('MakePrediction: The format of input data files is not support; Pls make sure inputfile_types is DataMatrix or OneLine')    
  
+
+    # ## datasize experiments
+    if args.max_num_train and args.max_num_val:
+        subset_savedir = os.path.join(args.save_dir, 'subset_'+str(args.max_num_train) )
+        create_directory(subset_savedir)
+        print('subset is saved in:\t', subset_savedir)
+        df_train = pd.DataFrame(train)
+        df_val = pd.DataFrame(val)
+        df_test = pd.DataFrame(test)
+        df_train.to_csv(os.path.join(subset_savedir, 'train.txt'),sep='\t', index=False, header=False)
+        df_val.to_csv(os.path.join(subset_savedir, 'val.txt'),sep='\t', index=False, header=False)
+        df_test.to_csv(os.path.join(subset_savedir, 'test.txt'),sep='\t', index=False, header=False)
+
+
 
     # initial a TRAFICA instance
     model = TRAFICA(PreTrained_ModelPath=args.pretrained_model_path, 
@@ -391,7 +404,6 @@ if __name__ == '__main__':
         if torch.cuda.is_available():
             model_used2test.to(device)
 
-
         # prediction 
         test_y, test_y_hat = test_model(model_used2test, test_dataloader=test_loader, Tokenizer=Tokenizer, device=device)
         
@@ -416,4 +428,7 @@ if __name__ == '__main__':
             # for batch fine-tuning to save evaluation results into one .json file
             if args.save_dir_metric and args.name_experiment:
                 saving_test_performance(args.save_dir_metric, metric_score, 'test_' + metric, args.name_experiment) # saving evaluation results 
+
+        # os.system(escape_special_chars('rm '+os.path.join(args.save_dir, 'fullytuned','pytorch_model.bin')))
+
 

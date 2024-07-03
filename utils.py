@@ -469,13 +469,6 @@ def pre_process_seq2kmer_files(data_dir, k=4, special_symbols=False, label=False
         print('the number of processed k-mer files :\t%d/%d' % (count, len(seq_files)))
 
 
-# def get_aminoacid_type_from_seqfile(file_path):
-#     seqs = pd.read_table(file_path, header=None).values.ravel()
-#     collect = []
-#     for seq in seqs:
-#         collect += list(set([char for char in seq]))
-#         collect = list(set(collect))
-#     return collect, len(collect)
 
 ##################### Bert source code: creat multi-head attention matrices  #####################
 # these functions were modified from google research bert source code: 'modeling.py' (yuxu)
@@ -770,19 +763,7 @@ def mask_strategy_contiguous_split(input, vocab, ratio=0.15, n_phrase_mask=1):
     return rand_mask
 
 
-# def construct_att_mask(inputs, n_heads=12, vocab=None):
-#     padding_mask = (inputs == vocab.index('[PAD]'))
-#     mask = torch.zeros(inputs.shape)
-#     mask = mask.masked_fill_(padding_mask, 1)
-#     mask = mask.bool()
-#     word_mask = create_attention_mask_from_input_mask(inputs, mask)#rand_mask)
-#     word_mask = word_mask.bool()
-#     attx_mask = torch.zeros(word_mask.shape).masked_fill_(word_mask, float('-inf'))
-#     attx_mask_for_multi_head = [] 
-#     for i in range(n_heads):
-#         attx_mask_for_multi_head.append(attx_mask)
-#     attx_mask = torch.cat(attx_mask_for_multi_head, dim=0)   # [n_head * batch_size, dim_hidden, dim_hidden]
-#     return attx_mask
+
 
 
 def mask_strategy_contiguous_split_for_HuggingBert(input, ratio=0.15, n_phrase_mask=1): 
@@ -1082,11 +1063,6 @@ if __name__ == '__main__':
     # python utils.py --seq_2_kmer True --sequence_dir /tmp/csyuxu/PRJEB9797_PRJEB20112 --k 4 --input_label True --level_sub_folder 2
     # python utils.py --seq_2_kmer True --sequence_dir /tmp/csyuxu/DREAM5_PBM_protocol --k 4 --input_label True --level_sub_folder 2
     # python utils.py --seq_2_kmer True --sequence_dir /tmp/csyuxu/packed_models_datasets/CHIP_datasets --k 4 --input_label True --level_sub_folder 2
-    
-    #for adapter fusion and in vivo evaluation
-    # python utils.py --seq_2_kmer True --sequence_dir /tmp/csyuxu/htselex_datasets --k 4 --input_label True --level_sub_folder 2
-    # python utils.py --seq_2_kmer True --sequence_dir /tmp/csyuxu/chip_seq_datasets --k 4 --input_label True --level_sub_folder 2
-
 
 
 
@@ -1111,11 +1087,7 @@ if __name__ == '__main__':
     # python utils.py --kmer_2_file True --kmer_dir /tmp/csyuxu/DREAM5_PBM_protocol_4mer --save_dir /tmp/csyuxu/DREAM5_PBM_protocol_4mer_DataFolder --level_sub_folder 2 
     # python utils.py --kmer_2_file True --kmer_dir /tmp/csyuxu/packed_models_datasets/CHIP_datasets_4mer --save_dir /tmp/csyuxu/packed_models_datasets/CHIP_datasets_4mer_DataFolder --level_sub_folder 2 
     
-    #for adapter fusion and in vivo evaluation
-    # python utils.py --kmer_2_file True --kmer_dir /tmp/csyuxu/htselex_datasets_4mer --save_dir /tmp/csyuxu/htselex_datasets_4mer_DataFolder --level_sub_folder 2 
-    # python utils.py --kmer_2_file True --kmer_dir /tmp/csyuxu/chip_seq_datasets_4mer --save_dir /tmp/csyuxu/chip_seq_datasets_4mer_DataFolder --level_sub_folder 2 
-    
-                       
+             
     
     ########### split sequences into files (one sequence one txt file) ##############
     if args.seq_2_file:
@@ -1133,16 +1105,4 @@ if __name__ == '__main__':
     # python utils.py --seq_2_file True --seq_dir /tmp/csyuxu/processed_uniref30_sequences --save_dir /tmp/csyuxu/processed_uniref30_sequences_pretrainDataFolder
    
 
-
-
-    # if args.count_char_types:
-    #     chars, n_types = get_aminoacid_type_from_seqfile(args.file_path)
-    #     special_tokens_for_bert = ['[MASK]', '[CLS]', '[PAD]', '[SEP]', '[UNK]']
-    #     chars = chars + special_tokens_for_bert
-    #     if args.save_dir != ' ':
-    #         save_txt_single_column(args.save_dir, chars)
-
-    # example: 
-    # python utils.py --count_char_types True --file_path /tmp/csyuxu/processed_uniref30_sequences/chunk_1.seq 
-    # python utils.py --count_char_types True --file_path /tmp/csyuxu/processed_uniref30_sequences/chunk_1.seq --save_dir ./vocab/vocab_amino_acid.txt
 

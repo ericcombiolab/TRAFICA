@@ -1,11 +1,8 @@
-# Model Implementation
-The pre-trained model and hundreds of the fine-tuned adapters are released in the HuggingFace hub [Link](https://huggingface.co/Allanxu/TRAFICA/tree/main).
-
-
+# TRAFICA pre-training, fine-tuning, and inference
 
 **************
-## Pre-train
-Here is an example of pre-training model with example ATAC-seq data in a single GPU
+## TRAFICA pre-training
+Here is an example of pre-training TRAFICA with example ATAC-seq data in a single GPU
 ``` bash
 CUDA_VISIBLE_DEVICES=1 python pretraining.py \
 --batch_size 384 \
@@ -19,22 +16,20 @@ CUDA_VISIBLE_DEVICES=1 python pretraining.py \
 --train_data_path ../ExampleData/ATAC_seq \
 --vocab_path ../vocab_k_mer/vocab_DNA_4_mer.txt
 ```
-TODO: revise HuggingFace model input to support multi-gpu pre-training.
 
 
 **************
 
 
-## Fine-tuning
-###  Fully fine-tuning: Loading pre-trained model and fine-tuning
-Run the following commend to fine-tune the pre-trained model on the example dataset
+## TRAFICA fine-tuning
+Run the following commend to fine-tune TRAFICA on the example dataset
 ``` bash
 CUDA_VISIBLE_DEVICES=1 python finetuning.py \
 --batch_size 128 \
 --n_epoches 50 \
 --n_epoches_tolerance 5 \
 --lr 0.00002 \
---save_dir ../ExampleFullyFineTune/HT_SELEX/RFX5_TGGAGC30NGAT \
+--save_dir ../Example_FineTune_result/HT_SELEX/RFX5_TGGAGC30NGAT \
 --train ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/train.txt \
 --val ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/val.txt \
 --test ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/test.txt \
@@ -44,171 +39,103 @@ CUDA_VISIBLE_DEVICES=1 python finetuning.py \
 --task_type FullyFineTuning \
 --predict_type regression \
 --inputfile_types DataMatrix \
---save_dir_metric ../ExampleFullyFineTune/HT_SELEX \
+--save_dir_metric ../Example_FineTune_result/HT_SELEX \
 --name_experiment RFX5_TGGAGC30NGAT 
 ```
 
-
-
-### Adapter-tuning: Loading pre-trained model and fine-tuning with adapters
-In this phase, the parameters of the pre-trained model are frozen. **Users can directly adopt our fine-tuned adapters and skip adapter-tuning procedures.**
-
+These two parameters should be added if users want to generate subsets for model fine-tuning
 ``` bash
-CUDA_VISIBLE_DEVICES=1 python finetuning.py \
---batch_size 128 \
---n_epoches 50 \
---n_epoches_tolerance 5 \
---lr 0.00002 \
---save_dir \
---train ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/train.txt \
---val ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/val.txt \
---test ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/test.txt \
---pretrain_tokenizer_path ./tokenizer \
---pretrained_model_path Allanxu/TRAFICA \
---use_gpu True \
---task_type AdapterTuning \
---predict_type regression \
---inputfile_types DataMatrix \
---save_dir_metric ../Examples/Example_AD_result_newversion \
---name_experiment RFX5_TGGAGC30NGAT 
+--max_num_train 10000
+--max_num_val 1000
 ```
-specify the `save_dir`
+The above example can generate a subset with 10000 sequences for fine-tuning. The generated susbset can be found in the path `../Example_FineTune_result/HT_SELEX/RFX5_TGGAGC30NGAT/subset_10000`.
 
-
-* We already trained hundreds of adapters using HT-SELEX and ChIP-seq datasets, which have been released in the HuggingFace model hub. These adapters can be used together with our pre-trained model to perform AdapterFusion precedures or make prediction directly. The list of the fine-trained adapters is in [TRAFICA](https://huggingface.co/Allanxu/TRAFICA/tree/main)
-
-* Training ChIP-seq adapters is the same process, modifying the params:   
-(1) `--predict_type regression` -> `--predict_type classification`;   
-(2) `--lr 0.00002` -> `--lr 0.0001`    
-(3) Data path and Save path corresponding to the specific dataset
-
-
-### AdapterFusion
-#### Step (1) Generating an adapter map for a specific HT-SELEX adapter  
-* In the example of the above adapter-tuning phase, we fine-tune a HT-SELEX adapter on RFX5_TGGAGC30NGAT dataset. Here we construct a map that incorperates TF-DNA adapters fine-tuned on other datasets (excluding TF RFX5) to enhance in vivo predictive performance. (e.g., [link](../AdapterMapsForFusion/ChIP_seq_137/PRJEB3289_RFX5_TGGAGC30NGAT.json))
-* The map is stored in a JSON format, in which each key-value pair represents a fine-tuned adapter. The keys are the names of datasets used to train adapters, and the values are the path of the fine-tuned adapters. 
-* Make sure the folders of "Adapters" downloaded from [HuggingFace](https://huggingface.co/Allanxu/TRAFICA/tree/main) and place in the correct path.
-
-#### Step (2) Loading the pre-trained model and fine-tuned adapters, tuning the AdapterFusion module
-In this phase, the parameters of the pre-trained model and the fine-tuned adapters are frozen. 
-
-``` bash
-CUDA_VISIBLE_DEVICES=1 python finetuning.py \
---batch_size 8 \
---n_epoches 50 \
---n_epoches_tolerance 3 \
---lr 0.0001 \
---save_dir  \
---train ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/train.txt \
---val ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/val.txt \
---test ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/test.txt \
---pretrain_tokenizer_path ./tokenizer \
---pretrained_model_path Allanxu/TRAFICA \
---finetuned_adapterlist_path ../AdapterMapsForFusion/ChIP_seq_137/PRJEB3289_RFX5_TGGAGC30NGAT.json \
---use_gpu True \
---task_type AdapterFusion \
---predict_type regression \
---inputfile_types DataMatrix \
---save_dir_metric ../ExampleAdapterFusion/HT_SELEX \
---name_experiment RFX5_TGGAGC30NGAT \
---max_num_val 1000 \
---max_num_train 2000
-```
-specify the `save_dir`
-
-
-## Prediction
+**************
+## TRAFICA inference
 ### Making prediction by using the fully fine-tuned model (In vitro)
 This example is based on the model fine-tuned in the above procedure of Fully fine-tuning
 ``` bash
 CUDA_VISIBLE_DEVICES=1 python prediction.py \
 --data_path ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/test.txt \
 --inputfile_types DataMatrix \
---save_dir ../PredictionExample \
+--save_dir ../Example_Inference \
 --pretrain_tokenizer_path ./tokenizer \
 --use_gpu True \
---finetuned_fullmodel_path ../ExampleFullyFineTune/HT_SELEX/RFX5_TGGAGC30NGAT \
+--finetuned_fullmodel_path ../Example_FineTune_result/HT_SELEX/RFX5_TGGAGC30NGAT \
 --task_type FullyFineTuning \
 --evaluation_metric set2 \
 --batch_size 32
 ```
 
 
-### Making prediction by using the pre-trained model coupled with the fine-tuned adapeters (In vitro)
+
+**************
+
+**************
+
+**************
+## TRAFICA adapter-tuning (Additional feature)
+> We also provide a parameter-efficient fine-tuning approarch to **save disk memory**. 
+### Adapter-tuning
+1. Insert the module of adapters in the Transformer-encoder architecture
+2. Froze the parameters of the pre-trained model
+3. Fine-tune the adapters
+
+``` bash
+CUDA_VISIBLE_DEVICES=1 python finetuning.py \
+--batch_size 128 \
+--n_epoches 50 \
+--n_epoches_tolerance 5 \
+--lr 0.00002 \
+--save_dir ../Example_Adapter_result/HT_SELEX/RFX5_TGGAGC30NGAT \
+--train ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/train.txt \
+--val ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/val.txt \
+--test ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/test.txt \
+--pretrain_tokenizer_path ./tokenizer \
+--pretrained_model_path Allanxu/TRAFICA \
+--use_gpu True \
+--task_type AdapterTuning \
+--predict_type regression \
+--inputfile_types DataMatrix \
+--save_dir_metric ../Example_Adapter_result/HT_SELEX \
+--name_experiment RFX5_TGGAGC30NGAT 
+```
+
+4. Coupling the pre-trained model with the fine-tuned adapters to make TF-DNA binding affinity prediction  
+
+
 ``` bash
 CUDA_VISIBLE_DEVICES=1 python prediction.py \
 --data_path ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/test.txt \
 --inputfile_types DataMatrix \
---save_dir  \
+--save_dir ../Example_Inference_Adapter \
 --pretrain_tokenizer_path ./tokenizer \
 --use_gpu True \
 --pretrained_model_path Allanxu/TRAFICA \
---finetuned_adapter_path ../Adapters/TF_DNA_Adapters/PRJEB3289/RFX5_TGGAGC30NGAT \
+--finetuned_adapter_path ../Example_Adapter_result/HT_SELEX/RFX5_TGGAGC30NGAT \
 --task_type AdapterTuning \
 --evaluation_metric set2 \
 --batch_size 32
 ```
-specify the `save_dir`
-
-
-### Making prediction by using the combination of the pre-trained model, the fine-tuned adapeters, and the AdapterFusion component (In vitro and in vivo)
-
-* In vitro
-``` bash
-CUDA_VISIBLE_DEVICES=1 python make_prediction.py \
---data_path ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/test.txt \
---inputfile_types DataMatrix \
---save_dir  \
---pretrain_tokenizer_path ./tokenizer \
---use_gpu True \
---pretrained_model_path  Allanxu/TRAFICA \
---finetuned_adapterfusion_path ../AdapterFusion/PRJEB3289_RFX5_TGGAGC30NGAT/ChIP_seq_All_137 \
---finetuned_adapterlist_path ../AdapterMapsForFusion/ChIP_seq_137/PRJEB3289_RFX5_TGGAGC30NGAT.json \
---task_type AdapterFusion \
---evaluation_metric set2 \
---batch_size 2
-```
-specify the `save_dir`
-
-
-* In vivo
-``` bash
-CUDA_VISIBLE_DEVICES=1 python make_prediction.py \
---data_path "../ExampleData/ChIP_seq/RFX5_GM12878_RFX5_(200-401-194)_Stanford/test.seqlabel" \
---inputfile_types DataMatrix \
---save_dir \
---pretrain_tokenizer_path ./tokenizer \
---use_gpu True \
---pretrained_model_path  Allanxu/TRAFICA \
---finetuned_adapterfusion_path ../AdapterFusion/PRJEB3289_RFX5_TGGAGC30NGAT/ChIP_seq_All_137 \
---finetuned_adapterlist_path ../AdapterMapsForFusion/ChIP_seq_137/PRJEB3289_RFX5_TGGAGC30NGAT.json \
---task_type AdapterFusion \
---evaluation_metric set1 \
---batch_size 2
-```
-specify the `save_dir`
-
-
-
 
 **************
-## Motif discovery based on attention scores
-sorting codes and materials ~~~~
 
 
+# Quickly apply 
+We released the weights of the pre-trained open chromatin language model and the fine-tunde adapters for hundreds of TFs (using HT-SELEX data). Users can directly apply TRAFICA to predict TF-DNA binding affinity without any training procedures (pre-train/fine-tune). 
 
-## Accessing the released pre-trained model and the trained adapters
-We recommended a most easy way to access the trained parameters, but requiring the Internet connection. Just set the param `--pretrained_model_path ` as the following: 
+## The weights of the pre-trained open chromatin model
+Users can easily load and fine-tune the pre-trained TRAFICA on their private data by setting the parameter of `--pretrained_model_path` as follows: 
 ``` bash
 --pretrained_model_path Allanxu/TRAFICA 
 ```
 
-If these is not Internet connection for your local environment, you can download the pre-trained model from [HuggingFace_released_v1](https://huggingface.co/Allanxu/TRAFICA/blob/main/pytorch_model.bin) by using other machine with network accessiblity, and change the param of `--pretrained_model_path` replaced by the local path of the model.
+## The weights of the fine-tuned adapters
+The list of the fine-trained adapters is available at [the HuggingFace repository](https://huggingface.co/Allanxu/TRAFICA/tree/main/Adapters)
 
 
-## Notice
-We just provided the pre-trained model and the fine-tuned adapters for users, because the fully fine-tuned models and the AdapterFusion component requiring a little bit more disk storage to save them.   
+**************
 
-User can easy load the pre-trained model to fine-tune with their own data. In addition, the fine-tuned adapters are provided for user to perform AdapterFusion for in vivo binding affinities prediction.
 
-Moreover, the pre-trained model coupled with the fine-tuned adapters also can be used to predict in vitro relative binding affinities directly.  
+
+# TODO: add an explanation for each parameter of the input console command
