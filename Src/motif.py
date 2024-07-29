@@ -1,11 +1,13 @@
-from transformers import BertConfig, BertTokenizer
-from torch.utils.data import DataLoader, Dataset
+from transformers import BertTokenizer
+from torch.utils.data import DataLoader
+from dataset import DataLoader_with_SeqFolder, Data_Collection, TRAFICA_Dataset
+
 # import torch.nn as nn
 import torch
 import numpy as np
 import sys
 import argparse
-from models import Bert_seqClassification, Bert_seqRegression
+from models import TRAFICA
 import h5py
 
 
@@ -288,14 +290,21 @@ def make_window(motif_seqs, pos_seqs, window_size=24):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--calc_score', required=False, type=bool, default=False, help="Calc attention scores for input sequences")    
-    parser.add_argument('--n_sequences', required=False, type=int, default=1000, help="Num of sequence used to derive sequence motifs; if None, using all sequences of the input data")    
+    parser.add_argument('--calc_score', required=False, type=bool, default=False, help="Calculating attention scores")    
+    parser.add_argument('--n_seqs', required=False, type=int, default=1000, help="Num of sequence used to derive sequence motifs; if None, using all sequences of the input data")    
     
-    parser.add_argument('--use_gpu', default=False, type=bool, help="Turn on to use gpu to train model; False: using cpu, True: using gpu if available.")
+    parser.add_argument('--use_gpu', default=False, type=bool, help="Turn on to use gpu to train/infer; False: using cpu, True: using gpu if available.")
     parser.add_argument('--save_dir', required=True,type=str, help="The saving path of the trained model")
     parser.add_argument('--data_path', required=False, type=str, help="The path of the data folder")
-    parser.add_argument('--vocab_path', required=False, type=str, help="The path of the vocabulary")
-    parser.add_argument('--model_dir', required=False, type=str, help=".")    
+    # parser.add_argument('--vocab_path', required=False, type=str, help="The path of the vocabulary")
+    parser.add_argument('--pretrain_tokenizer_path', required=False, type=str, help="The path of the tokenizer (4-mer)")
+    parser.add_argument('--pretrained_model_path', required=False, default=None, type=str, help="The path of the pretrained model")
+    parser.add_argument('--finetuned_fullmodel_path', required=False, default=None, type=str, help="The path of the fully finetuned model (Fully fine-tuning)")
+    parser.add_argument('--finetuned_adapter_path', required=False, default=None, type=str, help="The path of the pretrained adapter (Adapter-tuning)")
+    parser.add_argument('--finetuned_adapterlist_path', required=False, default=None, type=str, help="The path of the pretrained adapters list (AdapterFusion)")
+    parser.add_argument('--finetuned_adapterfusion_path', required=False, default=None, type=str, help="The path of the adapterfusion component (AdapterFusion)")
+    parser.add_argument('--task_type', default='AdapterTuning', type=str, help="TRAFICA support three types of fine-tuning: FullyFineTuning, AdapterTuning, and AdapterFusion")
+
 
     parser.add_argument('--generate_motifs', required=False, type=bool, default=False, help=".")  
     parser.add_argument('--pos_seq_path', required=False, type=str, help=".")
@@ -323,23 +332,40 @@ if __name__ == '__main__':
         create_directory(args.save_dir)
 
         # load pre-trained model & tokenizer initialization
-        Tokenizer = BertTokenizer(args.vocab_path, do_lower_case=False, model_max_length=512)
+        Tokenizer = BertTokenizer.from_pretrained(args.pretrain_tokenizer_path)
 
-        # datasets of each experiment
-        # data = load_datasets_test(args.data_path, batch_size=32, k=4)
-        data = pd.read_table(args.data_path).values
-        if args.n_sequences:
-            data = data[:args.n_sequences] 
-        pos_seqs =  data[:, 0]
 
-        dataset = MyDataset(data)
-        dataloader = DataLoader(dataset, 32, shuffle=False, collate_fn=data_collate_fn)
+        # data loading
+        data = pd.read_table(args.data_path, header=None).values
+            # save high-affinity sequences
+        sorted_indices = np.argsort(data[:, 1])[::-1]
+        sorted_data = data[sorted_indices]
+        if args.n_seqs:
+            sorted_data = sorted_data[:args.n_seqs] 
+        pos_seqs =  sorted_data[:, 0]
+
+        dataset = TRAFICA_Dataset(sorted_data)
+        dataloader = DataLoader(dataset, 32, shuffle=False, collate_fn=Data_Collection)
+
+ 
+
+  
+        # initial a TRAFICA instance
+        model = TRAFICA(PreTrained_ModelPath=args.pretrained_model_path, 
+                        FineTuned_FullModelPath=args.finetuned_fullmodel_path, 
+                        FineTuned_AdapeterPath=args.finetuned_adapter_path, 
+                        FineTuned_AdapetersListPath=args.finetuned_adapterlist_path, 
+                        FineTuned_AdapeterFusionPath=args.finetuned_adapterfusion_path,
+                        FineTuningType=args.task_type,
+                        out_attention=True)  
         
-        configuration = BertConfig.from_pretrained(args.model_dir)    
-        model = Bert_seqRegression(configuration, args.model_dir, pool_strategy='mean', fine_tuned=True, out_attention=True) 
+        # switch model into evaluation mode; added loading steps over PyTorch model.eval()
+        model._eval() # do not call this funtion again
+
+
         if torch.cuda.is_available():
             model.to(device)
-        model.eval()
+ 
 
         att_score_collect = []
         label_collect = []
@@ -348,23 +374,21 @@ if __name__ == '__main__':
         for batch in dataloader:
             batch_data_kmer = batch[0]       
             batch_label = batch[1]
-
+   
             inputs = Tokenizer(batch_data_kmer, return_tensors="pt", padding=True)
             pred, attentions = model(inputs.to(device))
+
             att = torch.stack(attentions)
-            att = torch.permute(att, (1, 0, 2, 3, 4)) # batch, n_layer, n_heads, len_seq, len_seq
-            att = att[:,:,:,1:-1,1:-1] # discard [CLS] and [SEP]
-            score = torch.sum(att,dim=3) # attention from other tokens
-            score = torch.mean(score,dim=2) # average attention from different heads
-            score = torch.mean(score,dim=1) # average attention from different layers
+            att = torch.permute(att, (1, 0, 2, 3, 4)) # shape: batch, n_layer, n_heads, len_seq, len_seq
+            att = att[:,:,:,1:-1,1:-1]                # discard [CLS] and [SEP]
+            score = torch.sum(att,dim=3)              # attention from itself and other tokens
+            score = torch.mean(score,dim=2)           # average attention scores from different heads
+            score = torch.mean(score,dim=1)           # average attention scores from different layers
 
             att_score_collect.append(score.cpu().detach().numpy())
             label_collect += batch_label.tolist()
             kmer_collect += (batch_data_kmer)
 
-            # if count >1:
-            #     break
-            # count+=1
 
         att_score = np.concatenate(att_score_collect, axis=0)
     
@@ -375,17 +399,14 @@ if __name__ == '__main__':
 
 
     if args.generate_motifs:
-        if not args.calc_score:
-                
+        if not args.calc_score:        
             with h5py.File(args.attscore_path, 'r') as f:
                 att_score = f['score'][:]
 
             #data = pd.read_table(args.data_path).values
             pos_seqs = np.array( load_txt_single_column(args.pos_seq_path) )
-
             create_directory(args.save_dir)
 
-        
         motif_seqs = {}
         k = 4 
         m_len = args.min_length
@@ -406,6 +427,7 @@ if __name__ == '__main__':
 
         motif_seq_folder = os.path.join(args.save_dir, 'motif_seq')
         create_directory(motif_seq_folder)
+        print(motif_seq_folder)
         for motif, instances in merged_motif_seqs.items():
             # saving to files
             with open( os.path.join(motif_seq_folder, 'motif_{}_{}.txt'.format(motif, len(instances['seq_idx'])) ), 'w') as f:
@@ -415,7 +437,6 @@ if __name__ == '__main__':
 
         if args.generate_logo:
             logo_out_dir = os.path.join(args.save_dir, 'motif_logo')
-
 
             create_directory(logo_out_dir)
 
@@ -439,22 +460,23 @@ if __name__ == '__main__':
  
   
 
-# python motif.py --calc_score True \
-# --n_sequences 1000 \
-# --data_path ../seq_rAff_r6.txt \
-# --model_dir /home/comp/csyuxu/aptdrug/ATF7_TGGGCG30NCGT \
-# --save_dir /home/comp/csyuxu/aptdrug/test_folder \
-# --vocab_path ../vocab_k_mer/vocab_DNA_4_mer.txt \
+# CUDA_VISIBLE_DEVICES=0 python motif.py --calc_score True \
+# --n_seqs 1000 \
+# --data_path ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/train.txt \
+# --finetuned_fullmodel_path ../Example_FineTune_result/HT_SELEX/RFX5_TGGAGC30NGAT \
+# --pretrain_tokenizer_path ./tokenizer \
+# --save_dir ../Example_MotifAnalysis/HT_SELEX/RFX5_TGGAGC30NGAT/ \
 # --use_gpu True \
+# --task_type FullyFineTuning \
 # --generate_motifs True \
 # --min_length 4
 
 
 
 # python motif.py --generate_motifs True \
-# --save_dir /home/comp/csyuxu/aptdrug/test_folder \
-# --attscore_path /home/comp/csyuxu/aptdrug/test_folder/att_score.h5 \
-# --pos_seq_path /home/comp/csyuxu/aptdrug/test_folder/pos_seqs.txt \
+# --save_dir ../Example_MotifAnalysis/HT_SELEX/RFX5_TGGAGC30NGAT/ \
+# --attscore_path ../Example_MotifAnalysis/HT_SELEX/RFX5_TGGAGC30NGAT/att_score.h5 \
+# --pos_seq_path ../Example_MotifAnalysis/HT_SELEX/RFX5_TGGAGC30NGAT/pos_seqs.txt \
 # --window_size 16 \
 # --min_length 4 \
 # --generate_logo True

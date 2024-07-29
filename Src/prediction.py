@@ -23,15 +23,14 @@ from utils import *
 def test_model(model, test_data, Tokenizer, device):
     collect_y = []
     collect_out = []
-    for data in test_data:
-
+    for data in test_data:     
         X, y = data
         inputs = Tokenizer(X, return_tensors="pt", padding=True)
-        y = torch.tensor(data[1]).float()
-
+        
         out = model(inputs.to(device))
-
-        collect_y += y.tolist()
+        
+        if isinstance(y, list):
+            collect_y += y 
         collect_out += out.flatten().cpu().detach().numpy().tolist()
 
     return  collect_y, collect_out
@@ -189,20 +188,20 @@ if __name__ == '__main__':
     else:
         test_y, test_y_hat = test_model(model, test_data=dataloader, Tokenizer=Tokenizer, device=device)
 
-
+   
     # save the predicted result
-    save_txt_single_column(os.path.join(args.save_dir, 'test_y.txt'), test_y)
     save_txt_single_column(os.path.join(args.save_dir, 'test_y_hat.txt'), test_y_hat)
-
-
+    if len(test_y) > 0:
+        save_txt_single_column(os.path.join(args.save_dir, 'test_y.txt'), test_y)
+    
     # calculate and save the evaluation results
-    if args.evaluation_metric == 'set1':
-        auroc = metrics.roc_auc_score(y_true=test_y, y_score=test_y_hat)
-        save_txt_single_column(os.path.join(args.save_dir, 'auroc.txt'), auroc)
-    elif args.evaluation_metric == 'set2':
-        r2 = metrics.r2_score(test_y, test_y_hat)
-        pcc, _ = pearsonr(test_y, test_y_hat)
-        save_txt_single_column(os.path.join(args.save_dir, 'r2.txt'), r2)
-        save_txt_single_column(os.path.join(args.save_dir, 'pcc.txt'), pcc)
+        if args.evaluation_metric == 'set1':
+            auroc = metrics.roc_auc_score(y_true=test_y, y_score=test_y_hat)
+            save_txt_single_column(os.path.join(args.save_dir, 'auroc.txt'), auroc)
+        elif args.evaluation_metric == 'set2':
+            r2 = metrics.r2_score(test_y, test_y_hat)
+            pcc, _ = pearsonr(test_y, test_y_hat)
+            save_txt_single_column(os.path.join(args.save_dir, 'r2.txt'), r2)
+            save_txt_single_column(os.path.join(args.save_dir, 'pcc.txt'), pcc)
 
 

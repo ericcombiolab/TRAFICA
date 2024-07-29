@@ -76,14 +76,21 @@ def Data_Collection(arr):
         row2    k-mer 1     k-mer 2 (sequence2)
     y (list): corresponding labels
     """
+    y = None
     arr = np.array(arr)
-    X = arr[:,0]
-    y = arr[:,1]
+    
+    if arr.shape[1] == 2:
+        X = arr[:,0]
+        y = arr[:,1].astype("float")
+    elif arr.shape[1] == 1:
+        X = arr[:,0]
+
     X = seq2kmer(list(X), k=4, min_length=10) # default k=4 in the TRAFICA study
     collect_x = []
     for i in X:
         collect_x.append(' '.join(i))
-    return collect_x, y.astype("float")
+
+    return collect_x, y
 
 
 if __name__ == '__main__':
