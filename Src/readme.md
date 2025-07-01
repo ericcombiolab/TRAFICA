@@ -1,230 +1,121 @@
-# TRAFICA pre-training, fine-tuning, and inference
 **************
-## Table of content
-### Demo by using the example data
-* [Pre-training](#TRAFICA-pre-training)
-* [Fine-tuning](#trafica-fine-tuning)
-* [Inference](#trafica-inference)
-* [Motif analysis](#motif-analysis)
-* [Additional features: Adapter-tuning](#trafica-adapter-tuning-additional-feature)
-
-### Directly apply our fine-tuned models 
-Utilizing TRAFICA to predict TF-DNA binding affinity for over 300 unique TFs. We relesead the model weights on:
-* [The weights of the open chromatin model](#the-weights-of-the-pre-trained-open-chromatin-model)
-* [The weights of the TF-DNA adapters](#the-weights-of-the-fine-tuned-adapters)
-**************
-## TRAFICA pre-training
-Here is a demo of pre-training TRAFICA with the example ATAC-seq data on a single GPU card. The entire ATAC-seq dataset (13 million sequences) can be found in [Zenode repository](https://zenodo.org/records/8248340)
+## 1. TRAFICA Pre-training
+**Run the below command**
 ``` bash
-CUDA_VISIBLE_DEVICES=1 python pretraining.py \
---batch_size 384 \
---total_training_step 110000 \
---lr_warmup 10000 \
+CUDA_VISIBLE_DEVICES=0 python pretraining.py \
+--batch_size 128 \
+--total_steps 500000 \
 --lr 0.0001 \
+--max_len_tokens 512 \
 --mask_ratio 0.15 \
---mask_n_phrases 10 \
---use_gpu True \
---model_save_dir ../Example_Pretrain_result \
---train_data_path ../ExampleData/ATAC_seq \
---vocab_path ../vocab_k_mer/vocab_DNA_4_mer.txt
+--tokenization 4_mer \
+--continuous_mask_tokens 10 \
+--n_heads 8 \
+--n_layers 8 \
+--d_model 512 \
+--use_gpu true \
+--check_point 2000 \
+--save_dir ../Pretrained_TRAFICA/4_mer \
+--pretrain_data_path ../Data/Cellline_atac_seq
 ```
 
 **Output**  
 |_ Example_Pretrain_result  
-|&nbsp;&nbsp;&nbsp;&nbsp;|_ pytorch_model.bin  
-|&nbsp;&nbsp;&nbsp;&nbsp;|_ config.json  
-|&nbsp;&nbsp;&nbsp;&nbsp;|_ training_setting.txt  
-|&nbsp;&nbsp;&nbsp;&nbsp;|_ loss_record.txt  
-|&nbsp;&nbsp;&nbsp;&nbsp;|_ acc_record.txt
+|&nbsp;&nbsp;&nbsp;&nbsp;|_ TRAFICA_Weights  
+|&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|_  config.json  
+|&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|_  generation_config.json  
+|&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|_  model.safetensors 
+|&nbsp;&nbsp;&nbsp;&nbsp;|_ pretrain_params.json  
+|&nbsp;&nbsp;&nbsp;&nbsp;|_ train_step_acc.txt  
+|&nbsp;&nbsp;&nbsp;&nbsp;|_ train_step_loss.txt  
+
+**Tokenization Version**  
+`--tokenization` can be `4_mer`, `5_mer`, `6_mer`, `Base-level`, `BPE`, and `BPE_DNABERT`  
+
++ `BPE`: vocabulary constructed using our ATAC-seq dataset
++ `BPE_DNABERT`:  vocabulary established in the DNABERT2 study
+
+
+**Pre-training Data**  
+`--pretrain_data_path`: path to the file `Cellline_atac_train_2m8.h5`, which is available at [Here]()
+
+
 
 
 **************
-
-
-## TRAFICA fine-tuning
-Run the following commend to fine-tune TRAFICA on the example dataset
+## 2. Reproduction of Experimental Results
+### 2.1 TRAFICA Fine-tuning on PBM/HT-SELEX Datasets
+**Run the below command**
 ``` bash
-CUDA_VISIBLE_DEVICES=1 python finetuning.py \
+python finetuning_TFbinding_AutoRun.py \
+--mode PBM \
+--tokenization Base-level \
+```
+ 
++ Make sure these two data folders exist: `../Data/DREAM5_PBM_protocol` and `../Data/HT_SELEX`
++ --mode: `PBM`, `HT-SELEX`, or `Ablation_PreTrain`
++ --tokenization: `4_mer`, `5_mer`, `6_mer`, `Base-level`, `BPE`, or `BPE_DNABERT`  
+
+### 2.2 TRAFICA Assessment on HT-SELEX Evaluation Protocol
+**Run the below command**
+``` bash
+python finetuning_TFbinding_AutoRun.py \
+--mode Cross-platform \
+--tokenization Base-level \
+```
++ Make sure these three files exist: `../Data/HT_SELEX_ChIP_overlap.csv`,`../Data/HT_SELEX_CrossExp_overlap.csv` and `../Data/HT_SELEX_PBM_DREAM5_overlap.csv`
++ --mode: `Cross-platform`, `Cross-experiment`, or `In-vivo`
++ --tokenization: `4_mer`, `5_mer`, `6_mer`, `Base-level`, `BPE`, or `BPE_DNABERT`  
+
+
+### 2.3 Motif analysis
+**Run the below command**
+``` bash
+python attn_extraction_AutoRun.py
+python attn_motif_AutoRun.py
+```
++ Make sure these folders exist: `../Data/HT_SELEX` and `../Finetuned_TRAFICA_All/Base-level`
+
+
+
+**************
+## 3. Fine-tuning TRAFICA Custom datasets
+### 3.1 Fine-tuning 
+**Run the below command**
+``` bash
+CUDA_VISIBLE_DEVICES=1 python finetuning_TFbinding.py \
 --batch_size 128 \
---n_epoches 50 \
---n_epoches_tolerance 5 \
---lr 0.00002 \
---save_dir ../Example_FineTune_result/HT_SELEX/RFX5_TGGAGC30NGAT \
---train ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/train.txt \
---val ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/val.txt \
---test ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/test.txt \
---pretrain_tokenizer_path ./tokenizer \
---pretrained_model_path Allanxu/TRAFICA \
---use_gpu True \
---task_type FullyFineTuning \
---predict_type regression \
---inputfile_types DataMatrix \
---save_dir_metric ../Example_FineTune_result/HT_SELEX \
---name_experiment RFX5_TGGAGC30NGAT 
+--lr 0.0001 \
+--n_epoch 300 \
+--n_toler 10 \
+--use_gpu true \
+--save_dir  \
+--eval_data_path \
+--tokenizer_path  \
+--tokenization  \
+--pretrained_model_path       
 ```
+
++ `eval_data_path`: the folder contains `train.txt`, `val.txt`, and `test.txt`  
++ `tokenizer_path`: can be `./Tokenizers/4mer` ...
++ `tokenization`: corresponding with `tokenizer_path`
 
 **Output**  
-|_ Example_FineTune_result   
-|&nbsp;&nbsp;&nbsp;&nbsp;|_ test_mse.json  
-|&nbsp;&nbsp;&nbsp;&nbsp;|_ test_pcc.json  
-|&nbsp;&nbsp;&nbsp;&nbsp;|_ test_r2.json  
-|&nbsp;&nbsp;&nbsp;&nbsp;|_ RFX5_TGGAGC30NGAT  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ mse.txt  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ pcc.txt  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ r2.txt  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ test_y_hat.txt  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ test_y.txt  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ training_setting.txt  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ train_loss_epoch.txt  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ val_loss_epoch.txt  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ fullytuned  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ pytorch_model.bin  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ config.json  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ peripherals  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ pytorch_model.bin  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ config.json  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_  
-|&nbsp;&nbsp;&nbsp;&nbsp;|_ ETS1_TGTACC30NCAG  
-...
-
-**Subset fine-tuning**: these two parameters should be added if users want to generate subsets for model fine-tuning
-``` bash
---max_num_train 10000
---max_num_val 1000
-```
-The above example can generate a subset with 10000 sequences for fine-tuning. The generated susbset can be found in the path `../Example_FineTune_result/HT_SELEX/RFX5_TGGAGC30NGAT/subset_10000`.
-
-**************
-## TRAFICA inference
-Making TF-DNA binding affinity prediction and evaluation by using the fully fine-tuned model (In vitro). This example is based on the model fine-tuned in the above procedure.
-``` bash
-CUDA_VISIBLE_DEVICES=1 python prediction.py \
---data_path ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/test.txt \
---inputfile_types DataMatrix \
---save_dir ../Example_Inference \
---pretrain_tokenizer_path ./tokenizer \
---use_gpu True \
---finetuned_fullmodel_path ../Example_FineTune_result/HT_SELEX/RFX5_TGGAGC30NGAT \
---task_type FullyFineTuning \
---evaluation_metric set2 \
---batch_size 32
-```
-**Output**  
-|_ Example_Inference  
+|_ save_dir   
+|&nbsp;&nbsp;&nbsp;&nbsp;|_ mse.txt  
 |&nbsp;&nbsp;&nbsp;&nbsp;|_ pcc.txt  
 |&nbsp;&nbsp;&nbsp;&nbsp;|_ r2.txt  
 |&nbsp;&nbsp;&nbsp;&nbsp;|_ test_y_hat.txt  
 |&nbsp;&nbsp;&nbsp;&nbsp;|_ test_y.txt  
-
-Only make prediction without evaluation
-``` bash
-CUDA_VISIBLE_DEVICES=1 python prediction.py \
---data_path ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/test.txt \
---inputfile_types DataMatrix \
---save_dir ../Example_Inference \
---pretrain_tokenizer_path ./tokenizer \
---use_gpu True \
---finetuned_fullmodel_path ../Example_FineTune_result/HT_SELEX/RFX5_TGGAGC30NGAT \
---task_type FullyFineTuning \
---batch_size 32
-```
-
-**Output**  
-|_ Example_Inference    
-|&nbsp;&nbsp;&nbsp;&nbsp;|_ test_y_hat.txt  
+|&nbsp;&nbsp;&nbsp;&nbsp;|_ train_loss_epoch.txt  
+|&nbsp;&nbsp;&nbsp;&nbsp;|_ val_loss_epoch.txt  
+|&nbsp;&nbsp;&nbsp;&nbsp;|_ training_setting.txt  
+|&nbsp;&nbsp;&nbsp;&nbsp;|_ predict_head_weights.pth  
+|&nbsp;&nbsp;&nbsp;&nbsp;|_ lora_adapter  
+|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ adapter_config.json  
+|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ adapter_model.safetensors  
 
 
-**************
-## Motif analysis
-Analyzing TF-binding motifs and generating motif logos. This example is based on the model fine-tuned in the above procedure.
-``` bash
-CUDA_VISIBLE_DEVICES=0 python motif.py \
---calc_score True \
---n_seqs 1000 \
---data_path ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/train.txt \
---finetuned_fullmodel_path ../Example_FineTune_result/HT_SELEX/RFX5_TGGAGC30NGAT \
---pretrain_tokenizer_path ./tokenizer \
---save_dir ../Example_MotifAnalysis/HT_SELEX/RFX5_TGGAGC30NGAT/ \
---use_gpu True \
---task_type FullyFineTuning \
---generate_motifs True \
---generate_logo True \
---min_length 4
-```
-**Output**  
-|_ Example_MotifAnalysis  
-|&nbsp;&nbsp;&nbsp;&nbsp;|_ HT_SELEX  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ RFX5_TGGAGC30NGAT  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ att_score.h5  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ pos_seqs.txt  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ motif_seq  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ motif_XXXXXXXX_XX.txt  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ motif_YYYYYYYY_YY.txt  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ ...  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ motif_logo  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ motif_XXXXXXXX_XX.png  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ motif_YYYYYYYY_YY.png  
-|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;&nbsp;|_ ...
-
-**************
-## TRAFICA adapter-tuning (Additional feature)
-> We also provide a parameter-efficient fine-tuning approarch to **save disk memory**. 
-### Adapter-tuning
-1. Insert the module of adapters in the Transformer-encoder architecture
-2. Froze the parameters of the pre-trained model
-3. Fine-tune the adapters
-
-``` bash
-CUDA_VISIBLE_DEVICES=1 python finetuning.py \
---batch_size 128 \
---n_epoches 50 \
---n_epoches_tolerance 5 \
---lr 0.00002 \
---save_dir ../Example_Adapter_result/HT_SELEX/RFX5_TGGAGC30NGAT \
---train ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/train.txt \
---val ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/val.txt \
---test ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/test.txt \
---pretrain_tokenizer_path ./tokenizer \
---pretrained_model_path Allanxu/TRAFICA \
---use_gpu True \
---task_type AdapterTuning \
---predict_type regression \
---inputfile_types DataMatrix \
---save_dir_metric ../Example_Adapter_result/HT_SELEX \
---name_experiment RFX5_TGGAGC30NGAT 
-```
-
-4. Coupling the pre-trained model with the fine-tuned adapters to make TF-DNA binding affinity prediction  
-
-
-``` bash
-CUDA_VISIBLE_DEVICES=1 python prediction.py \
---data_path ../ExampleData/HT_SELEX/RFX5_TGGAGC30NGAT/test.txt \
---inputfile_types DataMatrix \
---save_dir ../Example_Inference_Adapter \
---pretrain_tokenizer_path ./tokenizer \
---use_gpu True \
---pretrained_model_path Allanxu/TRAFICA \
---finetuned_adapter_path ../Example_Adapter_result/HT_SELEX/RFX5_TGGAGC30NGAT \
---task_type AdapterTuning \
---evaluation_metric set2 \
---batch_size 32
-```
-
-**************
-
-
-# Quickly apply 
-We released the weights of the pre-trained open chromatin language model and the fine-tunde adapters for hundreds of TFs (using HT-SELEX data). Users can directly apply TRAFICA to predict TF-DNA binding affinity without any training procedures (pre-train/fine-tune). 
-
-## The weights of the pre-trained open chromatin model
-Users can easily load and fine-tune the pre-trained TRAFICA on their private data by setting the parameter of `--pretrained_model_path` as follows: 
-``` bash
---pretrained_model_path Allanxu/TRAFICA 
-```
-
-## The weights of the fine-tuned adapters
-The list of the fine-trained adapters is available at [the HuggingFace repository](https://huggingface.co/Allanxu/TRAFICA/tree/main/Adapters). Users can directly utilize these fine-tuned TF-DNA adapters with the pre-trained model to infer TF-DNA binding affinity (ref to the step 4 of [Adapter-tuning section](#adapter-tuning)).
 
 
 **************
