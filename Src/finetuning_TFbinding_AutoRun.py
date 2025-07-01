@@ -14,11 +14,16 @@ if __name__ == '__main__':
     
     mode = args.mode                    # PBM; HT-SELEX ; Ablation_PreTrain
     tokenization = args.tokenization    # 4_mer; 5_mer; 6_mer; Base-level; BPE; BPE_DNABERT
+    tokenization_trans_dict = {'4_mer':'4_mer', '5_mer':'5_mer', '6_mer':'6_mer','Base-level':'Base-level',
+                               'BPE':'BPE1','BPE_DNABERT':'BPE2'}
+    
+    remote_path = f"Allanxu/TRAFICA-{tokenization_trans_dict[tokenization]}"
+    
     
     if tokenization == 'BPE_DNABERT':
         path_tokenizer = 'zhihan1996/DNABERT-2-117M'
     else:
-        path_tokenizer = os.path.join('./Tokenizers', tokenization)
+        path_tokenizer = remote_path
 
 
     if  mode == 'PBM':
@@ -27,12 +32,12 @@ if __name__ == '__main__':
         PBM_Exp = os.listdir(folder)
         for exp in PBM_Exp:
             eval_data_path = os.path.join(folder, exp)
-            save_dir = os.path.join(f'../Finetuned_TRAFICA_All/{tokenization}', 'FT_PBM', exp)
+            save_dir = os.path.join(f'../Finetuned_TRAFICA_All_/{tokenization}', 'FT_PBM', exp)
             
             if os.path.exists( os.path.join(save_dir, 'pcc.txt')):
                 continue
             
-            command = f"CUDA_VISIBLE_DEVICES=3 python finetuning_TFbinding.py " \
+            command = f"CUDA_VISIBLE_DEVICES=0 python finetuning_TFbinding.py " \
                         f"--batch_size {128} " \
                         f"--n_epoch {300} " \
                         f"--n_toler {10} " \
@@ -43,8 +48,10 @@ if __name__ == '__main__':
                         f"--tokenization {tokenization} " \
                         f"--use_gpu {True} " \
                         f"--predict_type regression " \
-                        f"--pretrained_model_path ../Pretrained_TRAFICA/medium_{tokenization}/TRAFICA_Weights"
-            
+                        f"--pretrained_model_path {remote_path}"
+                        # f"--pretrained_model_path ../Pretrained_TRAFICA/medium_{tokenization}/TRAFICA_Weights"
+                        
+            print(command)
             code = os.system(command)
             
             
@@ -65,7 +72,7 @@ if __name__ == '__main__':
                     if os.path.exists(check):
                         continue
                     
-                    command = f"CUDA_VISIBLE_DEVICES=1 python finetuning_TFbinding.py " \
+                    command = f"CUDA_VISIBLE_DEVICES=0 python finetuning_TFbinding.py " \
                                 f"--batch_size {128} " \
                                 f"--n_epoch {300} " \
                                 f"--n_toler {10} " \
@@ -76,7 +83,8 @@ if __name__ == '__main__':
                                 f"--tokenization {tokenization} " \
                                 f"--use_gpu {True} " \
                                 f"--predict_type regression " \
-                                f"--pretrained_model_path ../Pretrained_TRAFICA/medium_{tokenization}/TRAFICA_Weights"
+                                f"--pretrained_model_path {remote_path}"
+                                # f"--pretrained_model_path ../Pretrained_TRAFICA/medium_{tokenization}/TRAFICA_Weights"
 
                     print(command)
                     code = os.system(command)
@@ -108,7 +116,8 @@ if __name__ == '__main__':
                             f"--tokenization {tokenization} " \
                             f"--use_gpu {True} " \
                             f"--predict_type regression " \
-                            f"--pretrained_model_path ../Pretrained_TRAFICA/medium_{tokenization}/TRAFICA_Weights"
+                            f"--pretrained_model_path {remote_path}"
+                            # f"--pretrained_model_path ../Pretrained_TRAFICA/medium_{tokenization}/TRAFICA_Weights"
                 
                 print(command)
                 code = os.system(command)

@@ -16,23 +16,18 @@ if __name__ == '__main__':
     
     mode = args.mode                    # PBM; HT-SELEX ; Ablation_PreTrain
     tokenization = args.tokenization    # 4_mer; 5_mer; 6_mer; Base-level; BPE; BPE_DNABERT
+    tokenization_trans_dict = {'4_mer':'4_mer', '5_mer':'5_mer', '6_mer':'6_mer','Base-level':'Base-level',
+                               'BPE':'BPE1','BPE_DNABERT':'BPE2'}
+    
+    remote_path = f"Allanxu/TRAFICA-{tokenization_trans_dict[tokenization]}"
     
     if tokenization == 'BPE_DNABERT':
         path_tokenizer = 'zhihan1996/DNABERT-2-117M'
     else:
-        path_tokenizer = os.path.join('./Tokenizers', tokenization)
- 
-    # path_tokenizer = './Tokenizers/Base-level'
-    # tokenization = 'Base-level'
+        # path_tokenizer = os.path.join('./Tokenizers', tokenization)
+        path_tokenizer = remote_path
 
-    # path_tokenizer = './Tokenizers/5_mer'
-    # tokenization = '5_mer'
 
-    # path_tokenizer = './Tokenizers/BPE'
-    # tokenization = 'BPE'
-
-    # path_tokenizer = 'zhihan1996/DNABERT-2-117M'
-    # tokenization = 'BPE_DNABERT'
 
     if mode == 'Cross-platform':
         ### PBM
@@ -49,7 +44,7 @@ if __name__ == '__main__':
                 if os.path.exists(os.path.join(save_dir, 'pcc.txt')):
                     continue
 
-                command = f"CUDA_VISIBLE_DEVICES=1 python eval_TFbinding.py " \
+                command = f"CUDA_VISIBLE_DEVICES=0 python eval_TFbinding.py " \
                             f"--batch_size {128} " \
                             f"--save_dir {save_dir} " \
                             f"--eval_data_path {eval_data_path} " \
@@ -57,8 +52,10 @@ if __name__ == '__main__':
                             f"--tokenization {tokenization} " \
                             f"--use_gpu {True} " \
                             f"--predict_type regression " \
-                            f"--pretrained_model_path ../Pretrained_TRAFICA/medium_{tokenization}/TRAFICA_Weights " \
-                            f"--finetuned_lora_path ../Finetuned_TRAFICA_All/{tokenization}/{ht_selex_study}/{num_seqs}/{ht_selex_key}" 
+                            f"--pretrained_model_path {remote_path} " \
+                            f"--finetuned_lora_path ../Finetuned_TRAFICA_All/{tokenization}/{ht_selex_study}/{num_seqs}/{ht_selex_key}"       
+                            # f"--pretrained_model_path ../Pretrained_TRAFICA/medium_{tokenization}/TRAFICA_Weights " \
+                            # f"--finetuned_lora_path ../Finetuned_TRAFICA_All/{tokenization}/{ht_selex_study}/{num_seqs}/{ht_selex_key}" 
                                 
                 print(command)
                 code = os.system(command)
@@ -89,8 +86,10 @@ if __name__ == '__main__':
                             f"--tokenization {tokenization} " \
                             f"--use_gpu {True} " \
                             f"--predict_type classification " \
-                            f"--pretrained_model_path ../Pretrained_TRAFICA/medium_{tokenization}/TRAFICA_Weights " \
-                            f"--finetuned_lora_path ../Finetuned_TRAFICA_All/{tokenization}/{ht_selex_study}/{num_seqs}/{ht_selex_key}" 
+                            f"--pretrained_model_path {remote_path} " \
+                            f"--finetuned_lora_path ../Finetuned_TRAFICA_All/{tokenization}/{ht_selex_study}/{num_seqs}/{ht_selex_key}"                      
+                            # f"--pretrained_model_path ../Pretrained_TRAFICA/medium_{tokenization}/TRAFICA_Weights " \
+                            # f"--finetuned_lora_path ../Finetuned_TRAFICA_All/{tokenization}/{ht_selex_study}/{num_seqs}/{ht_selex_key}" 
                                 
                 print(command)
                 code = os.system(command)
@@ -123,8 +122,10 @@ if __name__ == '__main__':
                             f"--tokenization {tokenization} " \
                             f"--use_gpu {True} " \
                             f"--predict_type regression " \
-                            f"--pretrained_model_path ../Pretrained_TRAFICA/medium_{tokenization}/TRAFICA_Weights " \
-                            f"--finetuned_lora_path ../Finetuned_TRAFICA_All/{tokenization}/{train_study}/{num_seqs}/{train_key}" 
+                            f"--pretrained_model_path {remote_path} " \
+                            f"--finetuned_lora_path ../Finetuned_TRAFICA_All/{tokenization}/{train_study}/{num_seqs}/{train_key}"    
+                            # f"--pretrained_model_path ../Pretrained_TRAFICA/medium_{tokenization}/TRAFICA_Weights " \
+                            # f"--finetuned_lora_path ../Finetuned_TRAFICA_All/{tokenization}/{train_study}/{num_seqs}/{train_key}" 
                                 
                 print(command)
                 code = os.system(command)

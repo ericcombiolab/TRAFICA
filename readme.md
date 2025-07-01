@@ -81,6 +81,8 @@ state_dict = torch.load(os.path.join(lora_path,"predict_head_weights.pth"), weig
 model.classifier.load_state_dict( state_dict['PREDICT_HEAD'] )
 model = PeftModel.from_pretrained(model, os.path.join(lora_path,"lora_adapter"))
 ```
+**Fine-tuned TF LoRAs**  
+[Available at HuggingFace (large size)](https://huggingface.co/Allanxu/Finetuned_TRAFICA_All)
 
 3. Make prediction
 ``` python
@@ -102,7 +104,7 @@ print(f"Predicted relative affinities: {logit.flatten()}")
 
 
 ## (C) Experimental result repreduction & Fine-tuning on custom datasets
-* [Details of TRAFICA pre-training and LoRA fine-tuning (Click here)](./Src/readme.md)
+* Details of TRAFICA pre-training and LoRA fine-tuning [(Click here)](./Src/readme.md)
 
 
 
@@ -111,7 +113,7 @@ print(f"Predicted relative affinities: {logit.flatten()}")
 <!-- * The weights of pre-trained model is available at [the HuggingFace repository](https://huggingface.co/Allanxu/TRAFICA/tree/main)
 * The datasets used for TRAFICA pre-training/fine-tuning and evaluation are available at [Zenodo](https://zenodo.org/doi/10.5281/zenodo.8248339) -->
 
-* HT-SELEX Benchmark: [Zenodo]()
+* HT-SELEX Benchmark: [Zenodo](https://zenodo.org/records/15781226)
 
 
 ***************

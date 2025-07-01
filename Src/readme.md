@@ -37,7 +37,7 @@ CUDA_VISIBLE_DEVICES=0 python pretraining.py \
 
 
 **Pre-training Data**  
-`--pretrain_data_path`: path to the file `Cellline_atac_train_2m8.h5`, which is available at [Here]()
+`--pretrain_data_path`: path to the file `Cellline_atac_train_2m8.h5`, which is available at [Here](https://zenodo.org/records/15781226)
 
 
 
@@ -49,7 +49,7 @@ CUDA_VISIBLE_DEVICES=0 python pretraining.py \
 ``` bash
 python finetuning_TFbinding_AutoRun.py \
 --mode PBM \
---tokenization Base-level \
+--tokenization Base-level
 ```
  
 + Make sure these two data folders exist: `../Data/DREAM5_PBM_protocol` and `../Data/HT_SELEX`
@@ -59,9 +59,9 @@ python finetuning_TFbinding_AutoRun.py \
 ### 2.2 TRAFICA Assessment on HT-SELEX Evaluation Protocol
 **Run the below command**
 ``` bash
-python finetuning_TFbinding_AutoRun.py \
+python eval_TFbinding_AutoRun.py \
 --mode Cross-platform \
---tokenization Base-level \
+--tokenization Base-level
 ```
 + Make sure these three files exist: `../Data/HT_SELEX_ChIP_overlap.csv`,`../Data/HT_SELEX_CrossExp_overlap.csv` and `../Data/HT_SELEX_PBM_DREAM5_overlap.csv`
 + --mode: `Cross-platform`, `Cross-experiment`, or `In-vivo`
@@ -96,9 +96,19 @@ CUDA_VISIBLE_DEVICES=1 python finetuning_TFbinding.py \
 --pretrained_model_path       
 ```
 
-+ `eval_data_path`: the folder contains `train.txt`, `val.txt`, and `test.txt`  
-+ `tokenizer_path`: can be `./Tokenizers/4mer` ...
-+ `tokenization`: corresponding with `tokenizer_path`
++ `save_dir`: you local path
++ `eval_data_path`: the folder contains `train.txt`, `val.txt`, and `test.txt`. Each file contains two columns without header. First column is sequences and the second is affinity label.
++ `tokenizer_path`: `"Allanxu/TRAFICA-4_mer"`
++ `tokenization`: `4_mer`
++ `pretrained_model_path`: `"Allanxu/TRAFICA-4_mer"`
+
+**Other pre-trained versions** 
+ 
+Replacing `4_mer` with `5_mer`,`6_mer`,`Base-level`,`BPE1`, or `BPE2` for `tokenizer_path` and `pretrained_model_path`.  [HuggingFace Collection](https://huggingface.co/collections/Allanxu/trafica-6863a46a15f497be8ce4e25a)
+
+
+Replacing `4_mer` with `5_mer`,`6_mer`,`Base-level`,`BPE`, or `BPE_DNABERT` for `tokenization`.
+
 
 **Output**  
 |_ save_dir   
